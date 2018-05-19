@@ -1,0 +1,17 @@
+flags: {}
+
+packages:
+- '.'
+
+resolver: nightly-2018-03-20
+
+extra-deps:
+- semiring-num-1.6.0.1
+- finite-typelits-0.1.3.0
+- flow-1.0.12
+- equivalence-0.3.2
+- STMonadTrans-0.4.3
+
+nix:
+  enable: false
+  packages:

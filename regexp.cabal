@@ -1,0 +1,95 @@
+name:                regexp
+version:             0.1.0.0
+category:            Text
+synopsis:            Derivatives, intersections, complement, and equivalence of regular expressions.
+homepage:            https://github.com/cacay/regexp
+
+license:             MIT
+license-file:        LICENSE
+
+author:              Cosku Acay
+maintainer:          coskuacay@gmail.com
+
+build-type:          Simple
+cabal-version:       >=1.10
+
+extra-source-files:  README.md
+
+
+library
+  hs-source-dirs:        src
+
+  default-language:      Haskell2010
+
+  exposed-modules:       RegExp.RegExp
+                         RegExp.Language
+                         RegExp.Derivative
+                         RegExp.Equation
+                         RegExp.Operations
+                         Data.BooleanAlgebra
+                         Data.KleeneAlgebra
+                         Data.GSet
+                         Data.Semiring
+
+                         RegExp.Internal.DFA
+
+  other-modules:         SparseVector
+                         SparseMatrix
+
+  build-depends:         base >= 4.11,
+                         flow,
+                         mtl,
+                         containers,
+                         equivalence,
+                         -- semiring-num,
+                         singletons,
+                         finite-typelits,
+                         QuickCheck,
+                         smallcheck
+
+  default-extensions:    ScopedTypeVariables
+                         OverloadedStrings
+                         StandaloneDeriving
+                         DeriveFunctor
+
+  other-extensions:      GADTs
+                         DataKinds
+                         KindSignatures
+                         TypeFamilies
+                         FlexibleInstances
+                         FlexibleContexts
+                         UndecidableInstances
+                         OverloadedLists
+
+  ghc-options:           -fwarn-incomplete-patterns
+                         -fwarn-unused-imports
+
+
+test-suite spec
+  type: exitcode-stdio-1.0
+
+  hs-source-dirs:        test
+
+  default-language:      Haskell2010
+
+  main-is:               Spec.hs
+
+  other-modules:         Data.GSetSpec
+                         RegExp.RegExpSpec
+                         RegExp.OperationsSpec
+                         RegExp.Internal.DFASpec
+                         Helpers
+
+  build-depends:         base >= 4.11,
+                         regexp,
+                         hspec,
+                         hspec-smallcheck,
+                         QuickCheck,
+                         smallcheck
+
+  default-extensions:    ScopedTypeVariables
+                         OverloadedStrings
+                         StandaloneDeriving
+                         DeriveFunctor
+
+  ghc-options:           -Wall
