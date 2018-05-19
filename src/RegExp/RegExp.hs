@@ -28,7 +28,7 @@ module RegExp.RegExp
     , nullable
     , empty
 
-    -- * Combining regular expressions
+    -- * #combining# Combining regular expressions
     , rZero
     , rOne
     , rPlus
@@ -69,7 +69,8 @@ type CharacterClass c =
 -- @c@ (so we don't have to encode them using choice). The type
 -- is left abstract so we can apply rewriting rules to simplify and
 -- normalize expressions. Refer to 'view' and 'RegExpView' for
--- working with 'RegExp'.
+-- inspecting 'RegExp', and to 'hide' and [the relevant section](#combining)
+-- for constructing them.
 --
 -- Normalizing expressions not only makes them smaller and more
 -- readable, but also ensures termination for some algorithms, so
@@ -116,6 +117,7 @@ data RegExp c where
     ROne  :: RegExp c
     RNormalized :: (NormalizedRegExp c isUnion isSeq isNullable) -> RegExp c
 
+-- | Syntactic equality.
 instance GSet c => Eq (RegExp c) where
     RZero == RZero =
         True
@@ -126,6 +128,8 @@ instance GSet c => Eq (RegExp c) where
     _ == _ =
         False
 
+-- | An arbitrary syntactic ordering. Useful for defining sets and
+-- maps over regular expressions.
 instance (GSet c, Ord (CharacterClass c)) => Ord (RegExp c) where
     compare RZero RZero =
         EQ
@@ -145,6 +149,12 @@ instance (GSet c, Ord (CharacterClass c)) => Ord (RegExp c) where
         r1 `hCompare` r2
 
 -- | Nicer interface for inputting regular expression over 'Char'.
+-- For example,
+--
+-- > "abc" :: 'RegExp' 'Char'
+--
+-- is the regular expression that matches single character strings
+-- @"a"@, @"b"@, and @"c"@ (it doesn't match the string @"abc"@).
 instance IsString (RegExp Char) where
     fromString =
         rLiteral . fromString
@@ -1102,6 +1112,7 @@ data ListView c e
 
 -- * Testing
 
+-- | For testing with QuickCheck.
 instance (GSet c, Arbitrary (CharacterClass c)) => Arbitrary (RegExp c) where
     arbitrary = do
         size <- getSize
@@ -1171,6 +1182,7 @@ instance (GSet c, Arbitrary (CharacterClass c)) => Arbitrary (RegExp c) where
                 [rLiteral s | s <- shrink p]
 
 
+-- | For testing with SmallCheck.
 instance (GSet c, Monad m, Serial m (CharacterClass c)) => Serial m (RegExp c) where
     series =
         cons0 rZero \/
