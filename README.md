@@ -20,7 +20,9 @@ Here is a summary of supported features:
 ## Usage and Development
 
 We use [Stack](https://docs.haskellstack.org) so it's pretty much
-trivial to get started. After installing Stack, simply run
+trivial to get started. After
+[installing](https://docs.haskellstack.org/en/stable/README/#how-to-install)
+Stack, simply run
 ```shell
 stack repl
 ```
@@ -28,7 +30,7 @@ to be dropped in GHCi where you can play around with the library. This will
 install all dependencies, build the library, and do whatever is necessary so
 everything "Just Works (TM)".
 ```shell
-stack hoddock --open regexp
+stack haddock --open regexp
 ```
 will open the documentation in your browser and
 ```shell
