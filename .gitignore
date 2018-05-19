@@ -1,0 +1,8 @@
+# Haskell
+cabal.config
+.stack-work
+
+# JetBrains
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/dictionaries
