@@ -32,7 +32,7 @@ stack repl
 ```
 to be dropped in GHCi where you can play around with the library. This will
 install all dependencies, build the library, and do whatever is necessary so
-everything "Just Works (TM)".
+everything "Just Works™".
 ```shell
 stack haddock --open regexp
 ```

@@ -22,13 +22,16 @@ import Data.GSet(GSet)
 
 -- | Right-hand side of an equation. A sum of terms where a term is
 -- either a constant, or a constant times a variable. These look
--- like @r0 + r1 X1 + r2 X2 ...@.
+-- like @r0 + r1 X1 + r2 X2 ...@ where @ri@ are regular expressions
+-- and @Xi@ are variables.
 type RightHand c v =
     (RegExp c, Map v (RegExp c))
 
 
 -- | Solve a system of linear equations with regular expression coefficients.
 -- Equations are generated on demand using the given function.
+-- Coefficients in front of variables must be non-nullable to ensure the
+-- system has a unique solution.
 solve :: forall v c. (GSet c, Ord v) => (v -> RightHand c v) -> v -> RegExp c
 solve f v =
     evalState (go v) (Context Map.empty Map.empty)
