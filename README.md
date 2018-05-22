@@ -1,4 +1,6 @@
-# Regexp
+# regexp
+
+[![Build Status](https://travis-ci.com/cacay/regexp.svg?branch=master)](https://travis-ci.com/cacay/regexp)
 
 This is a regular expression library for Haskell that focuses on higher level
 operations like computing the intersection of regular expressions or deciding
