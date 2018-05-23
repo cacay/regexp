@@ -6,3 +6,8 @@ cabal.config
 .idea/**/workspace.xml
 .idea/**/tasks.xml
 .idea/dictionaries
+
+# Distribution
+*.tar
+*.tar.gz
+*.pdf
