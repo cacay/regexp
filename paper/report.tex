@@ -1,0 +1,240 @@
+\documentclass[11pt]{article}
+
+\usepackage{fullpage}  % More space
+\usepackage{tgpagella} % Better font
+\usepackage{microtype} % Slightly improved typography
+
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{todonotes}
+
+\usepackage{amsmath, amsfonts, amsthm, amssymb, mathtools} % math
+\usepackage{mathpartir}
+
+\usepackage{syntax}
+\setlength{\grammarindent}{4em} % increase separation between LHS/RHS
+
+\usepackage{macro/generic}
+\usepackage{macro/code}
+
+
+%=====================================================================
+% Author
+%=====================================================================
+
+\title{A Regular Expression Library for Haskell}
+\author{Josh Acay \\ \href{mailto:ca483@cornell.edu}{ca483@cornell.edu}}
+\date{May 22, 2018}
+
+
+%=====================================================================
+% Macros
+%=====================================================================
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{example}{Example}
+
+\DeclareMathOperator{\lang}{\mathcal{L}}
+\DeclareMathOperator{\derivative}{D}
+\DeclareMathOperator{\nullable}{nullable}
+
+\newcommand{\transpose}{^\top}
+
+\newcommand{\by}[1]{\parens{\text{#1}}}
+\newcommand{\since}[1]{\parens{\text{since #1}}}
+\newcommand{\eqBy}[1]{\braces{\text{#1}}}
+
+\newcommand{\haskell}{\lstinline}
+
+
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  I detail the implementation of a regular expression library for Haskell.\footnote{%
+    Available online at \url{https://github.com/cacay/regexp}.}
+  Unlike similar libraries in the wild, this one supports more than just matching strings: it can compute intersections and complements, take derivatives \'a la Brzozowski \cite{Brzozowski64}, check for equivalence, and solve systems of linear equations with regular expression coefficients. In addition, the library is designed to be generic over the alphabet (even allowing infinite ones) so it is not tied to Haskell's builtin \haskell{Char} and \haskell{String} types.
+\end{abstract}
+
+
+\section{Introduction}
+  Regular expressions provide a simple yet powerful language for string searching and matching. They are expressive enough to describe many common patterns that arise in practice (e.g.\ alternatives and repetition) but restrictive enough that many desirable properties are effectively decidable (e.g.\ equivalence and containment checking). Additionally, regular languages are closed under intersection, union, and complement making it possible to expose a natural interface that uses familiar connectives like ``and'', ``or'', and ``not''.
+
+  Unfortunately, practical implementations of regular expressions focus too much on string matching and forego all the benefits of having a restricted language. For instance, I was
+  unable to find a single popular regular expression library (for any programming language) that supports equivalence checking.
+  % Very few support complement and/or intersection, but do so by extending the language
+  % rather than computing the complement or intersection in terms of the basic operators.
+  In fact, many modern implementations add features such as capture groups and backreferences which break most closure properties and make equivalence checking undecidable \cite{CampeanuSY03}.
+
+  Although string matching is sufficient for many application, there are cases where the additional power is useful (e.g.\ during design and development) or necessary.\footnote{%
+    I sketch the application this library was built for in \cref{application}.}
+  Here, I detail the design and development of a Haskell library that exposes this additional power to the user.
+
+
+\section{Specification}
+
+Given an alphabet $\Sigma$, regular expressions have the following syntax:
+\begin{grammar}
+  <exp> ::= 1
+  \alt <exp> + <exp>
+  \alt <exp> $\cdot$ <exp>
+  \alt <exp>$^*$
+  \alt $l \subseteq \Sigma$
+\end{grammar}
+
+The interpretation of these expressions is standard:
+$1$ matches the empty word,
+$e_1 + e_2$ matches either $e_1$ or $e_2$,
+$e_1 \cdot e_2$ matches $e_1$ followed by $e_2$,
+$e^*$ matches zero or more copies of $e$,
+and the literal $l$ matches single character words $a$ where $a \in l$.
+This is a generalization of the standard syntax which only allows single characters as literals rather than sets of characters or \emph{character classes} and encodes the set $\set{a_1, a_2, \ldots, a_n}$ as $a_1 + a_2 + \cdots + a_n$. I use character classes directly since they generalize to infinite alphabets (which I will discuss in \cref{effective-boolean-algebra}) and are more efficient to implement. The expression 0---which matches no strings---is represented with the empty character class $\emptyset$.
+
+It is easy enough to define a parametrized algebraic data type \haskell{RegExp $\Sigma$} that mirrors this syntax. I implement the following operations on regular expressions:
+\begin{itemize}
+  \item \haskell{matches :: RegExp $\Sigma$ -> [$\Sigma$] -> Bool}\\
+    \haskell{matches $e$ $w$} returns \haskell{True} whenever the expression $e$ matches the word $w$.
+
+  \item \haskell{complement :: RegExp $\Sigma$ -> RegExp $\Sigma$}\\
+    \haskell{complement $e$} returns a regular expression that matches precisely the words $e$ does not match.
+
+  \item \haskell{intersection :: RegExp $\Sigma$ -> RegExp $\Sigma$ -> RegExp $\Sigma$}\\
+    \haskell{intersection $e_1$ $e_2$} returns a regular expression that matches words both $e_1$ and $e_2$ match.
+
+  \item \haskell{equivalent :: RegExp $\Sigma$ -> RegExp $\Sigma$ -> Either [$\Sigma$] ()}\\
+    \haskell{equivalent $e_1$ $e_2$} returns \haskell{Right ()} (i.e.\ ``true'') if $e_1$ and $e_2$ are equivalent, and \haskell{Left $w$} otherwise. Here, the word $w$ is a counterexample that is matched by one expression but not the other.
+
+  \item \haskell{solve :: LinearSystem $\Sigma$ -> RegExp $\Sigma$}: given a system of linear equations of the form:
+    \begin{gather*}
+      X_1 = e_1^0 + e_1^1 X_1 + e_1^2 X_2 + \cdots e_1^n X_n\\
+      X_2 = e_2^0 + e_2^1 X_1 + e_2^2 X_2 + \cdots e_2^n X_n\\
+          \vdots\\
+      X_m = e_m^0 + e_m^1 X_1 + e_m^2 X_2 + \cdots e_m^n X_n
+    \end{gather*}
+    where each $e_i^j$ is non-nullable (i.e.\ doesn't match the empty string), solve for $X_1$.\footnote{%
+    Actual type of \haskell{solve} is slightly different, but amounts to the same thing.} Note that all coefficients need to be on the same of the variables to ensure there is a solution. I arbitrarily pick left.
+
+    \haskell{solve} is a versatile and powerful function. It can derive \haskell{intersection}, \haskell{complement}, and many other operators. However, I observed that going through deterministic finite automata gives more succinct expressions.
+\end{itemize}
+
+
+\section{Implementation}
+
+\subsection{Derivatives of Regular Expressions}
+
+The entirety of this library reduces to Brzozowski derivatives, deterministic finite state automata (DFAs), and the correspondence between them. The derivative of a regular expression $e$ with respect to a character $a \in \Sigma$ is a regular expression $e'$ such that $e'$ matches a word $w$ if and only if $e$ matches $a w$. Brzozowski showed that derivatives always exist and that they could be computed syntactically \cite{Brzozowski64}. This has an obvious extension to arbitrary words $w$, which I denote by $\derivative_w{(e)}$. This gives a trivial way to implement matching:
+\begin{equation*}
+  \haskell{matches $e$ $w$ = nullable ($\derivative_w{(e)}$)}.
+\end{equation*}
+where \haskell{nullable $e$} if and only if $e$ can match the empty word. There is no need to explicitly convert to a DFA, although one might still want to for efficiency's sake.
+
+\subsection{Computing Intersection and Complement}
+
+To compute intersection and complement, I go through the standard motions of converting regular expressions to DFAs, performing the relevant operation on the DFA representations (product construction for intersection and flipping accepting/non-accepting states for complement), and converting back. Although the concept of going through DFAs is not new, the methods I use are hard to come by in real-world code (even though they are not novel theoretically).
+
+In the forward direction, I construct a DFA directly from a regular expression using Brzozowski derivatives instead of determinizing a nondeterministic finite state automaton, which is what most implementations do. The idea is simple: derivatives of a regular expression are the states of the deterministic automaton and there is an $a$ transition from $e$ to $e'$ if $\derivative_a{(e)} = e'$. Considering the derivative with respect to all words gives the full automaton. Brzozowski showed in \cite{Brzozowski64} that this process generates only finitely many states as long as regular expressions are compared modulo associativity, commutativity, and idempotence of $+$ (ACI). I achieve this by keeping the type \haskell{RegExp} abstract and only exposing ``smart'' constructors that normalize regular expressions with respect to the following equalities:
+\begin{mathpar}
+(r + s) + t = r + (s + t)
+\and r + s = s + t
+\and r + r = r
+%
+\\ 0 + r = r
+%
+\\ (r \cdot s) \cdot t = r \cdot (s \cdot t)
+\and 1 \cdot r = r = r \cdot 1
+\and 0 \cdot r = 0 = r \cdot 0
+%
+\\ (r^*)^* = r^*
+\and 0^* = 1
+\and 1^* = 1
+\end{mathpar}
+The first three equalities are required for termination as discussed; others reduce the number of states generated which speeds up execution and results in smaller more readable expressions. To get even smaller expressions, I keep regular expressions in strong star normal form, which was introduced as a linear time simplification method in \cite{GruberG10}. Very basically, the strong star normal form limits applications of $^*$ to non-nullable expressions, so $(1 + a)^*$ would get converted to the equivalent $a^*$.
+
+
+The other direction, converting a DFA into a regular expression, is essentially unimplemented: I was unable to find a single library, or even a single piece of working code that does it\footnote{%
+  I did find a Coq library described in \cite{DoczkalKS13} that implements DFA to regular expression conversion and does so in a mechanically verified way, but being a constructive proof, the implementation was so inefficient it was unable to convert the expression $0$ to a DFA and back.}.
+  Worse yet, a web search yields no results that are easy to turn into an algorithm. Most sources talk about solving a system of linear equations but offer no insight into how. Such methods might work if one is doing this by hand, but of course a computer requires a more formal specification.
+
+  The method I settled on is due to Kozen \cite{Kozen94}. The idea is simple and elegant: represent the DFA in matrix form as a triple $\angled{u, M, v}$ where $u$ and $v$ are $\set{0, 1}$ vectors representing starting and accepting states, respectively, and $M$ is the transition matrix. Then, $u\transpose M^* v$ gives a regular expression that matches the set of words accepted by this DFA\@. I use a home-baked implementation of sparse vectors and sparse matrices to represent DFAs since I was unable to find an existing Haskell library that was up to the task. The most interesting part of this is the implementation of Kleene star for matrices, which uses the divide-and-conquer method of \cite{Kozen94}. Further details on the technique can be found in \cite{Kozen94}.
+
+
+\subsection{Equality Checking}
+
+I use Hopcroft and Karp's bisimulation algorithm \cite{HopcroftK71} for checking the equivalence of DFAs augmented with a union-find structure \cite{BonchiP11}. However, I generate the DFAs on the fly using Brzozowski derivatives instead of computing them upfront. This gives the algorithm a chance to fail early and avoid the exponential time process of converting to a DFA\@. The implementation is able to generate a counterexample if the expression are not equivalent.
+
+
+\subsection{Solving Systems of Linear Equations}
+
+Given a system of linear equations of the form
+\begin{gather*}
+  X_1 = e_1^0 + e_1^1 X_1 + e_1^2 X_2 + \cdots e_1^n X_n\\
+  X_2 = e_2^0 + e_2^1 X_1 + e_2^2 X_2 + \cdots e_2^n X_n\\
+      \vdots\\
+  X_m = e_m^0 + e_m^1 X_1 + e_m^2 X_2 + \cdots e_m^n X_n
+\end{gather*}
+where $e_i^j$ are non-nullable, it is possible to solve for $X_1$ using Arden's lemma and Gaussian elimination. Arden's lemma states that the unique solution to the equation $X = A \cdot X + B$ is $A^* B$ as long as $A$ is non-nullable. Using the lemma, it is possible to eliminate variables one at a time by walking down the tree\footnote{%
+Apply the lemma to the first equation to get an equation for $X_1$ that doesn't refer to itself, then substitute it in for $X_1$ in all following equations. Rinse and repeat until you reach the bottom.} until $X_m$ is reached. At this point, the equation for $X_m$ only refers to itself, so apply Arden's lemma to get a closed expression for $X_m$. This can be propagated back using substitution by walking up the tree. At each step, the equation for a variable will only contain that variable so Arden's lemma gives a closed form solution.
+
+Linear equation solving is useful for many applications, one of which is computing intersection and complement. It is easy to see that
+\[ \haskell{intersection $e_1$ $e_2$}
+  = (\haskell{nullable $e_1$} = \haskell{nullable $e_2$}) + \sum_{a \in \Sigma}{a  \cdot \haskell{intersection (derivative $a$ $e_1$) (derivative a $e_2$)}}
+\]
+and
+\[ \haskell{complement $e$}
+  = \neg(\haskell{nullable $e$}) + \sum_{a \in \Sigma}{a \cdot \haskell{complement (derivative $a$ $e$)}}
+\]
+(interpreting booleans as regular expressions in the expected way). Unfolding these definitions indefinitely and treating every application of the operator to unique input(s) as a fresh variable results in a finite system of linear equations.
+
+
+\subsection{Generalizing Literals}\label{effective-boolean-algebra}
+
+Rather than fixing literals to be sets of characters, I define them to be elements of an effective boolean algebra $\angled{\Sigma, U, \bracks{\cdot}, \sqcup, \sqcap, \bot, \top}$.
+The implementation closely follows the presentation in \cite{KeilT14} so I will elide the details. The important thing to note is that effective boolean algebras have many useful instantiations including finite subsets of a finite alphabet, finite and cofinite (a set whose complement is finite) subsets of an infinite alphabet, a logic of decidable propositions over an alphabet and so on.
+
+My implementation is generic against this abstract interface so all these options can be made to work easily, but I only provide an implementation of finite and cofinite subsets of a \emph{finite} alphabet. One might wonder the point of supporting cofinite subsets of a finite alphabet since they are finite sets. The reason is that supporting cofinite subsets gives major speedups when working with very large alphabets such as the set of Unicode characters. For example, the representation of \haskell{complement $\set{a}$} is simply the complemented set $\neg\set{a}$ which needs to list a single element. Representing this set directly would require listing millions of characters that are not the character ``a''.
+
+
+\section{Testing and Verification}
+
+I employ a mix of static and dynamic techniques to ensure correctness. Static guarantees are a result of Haskell's incredibly powerful type system. For example, I use algebraic data types to ensure all regular expressions conform to the syntax described in this paper. With normalized regular expressions, I had to go a step further and use generalized algebraic data types (a.k.a.\ indexed algebraic data types) \cite{CheneyH03} to check invariants such as ``Kleene star is only applied to non-nullable regular expressions''. This is achieved by indexing the data type of regular expression by a boolean \haskell{isNullable} with the obvious meaning. The implementation of sparse vectors and sparse matrices goes yet another step further straight into the dependently typed territory. These types are indexed by their size to enforce invariants such as ``only vectors of equal length are added together''. I use the singletons library \cite{Singletons} for this purpose, which gives Haskell limited dependent programming capabilities. I insert dynamic assertions wherever the type system falls short. These dynamic checks are useful for two reasons: (1) they increase the likelihood of catching bugs, and (2) they make tracking down the root cause of the said bugs much easier.\footnote{%
+  I discovered one bug due to an assertion failure. A different unrelated bug in the regular expression to DFA conversion code was discovered during testing by manual inspection of output, but I tracked it down by inserting dynamic checks (which, in hindsight, should have been there to begin with).
+}
+
+In addition to static checks, I use unit tests and property testing to further increase the confidence in the library. Unit tests are assertions on ground terms such as
+  \[ \haskell{intersection $(a + b)^*$ $a^*$} = a^* \]
+  where $a$, $b$ are concrete elements of a concrete type $\Sigma$, say, \haskell{Char}.  Haskell's hspec library\footnote{%
+  \url{https://hackage.haskell.org/package/hspec}
+} provides a good framework for writing such tests. I use SmallCheck \cite{SmallCheck} and QuickCheck \cite{QuickCheck} for property testing. These libraries allow one to write logical assertions such as
+\[ \forall e_1, e_2. \haskell{equivalent $e_1$ $e_2$} = \haskell{Right ()}
+   \implies \forall w. \haskell{matches $e_1$ $w$} = \haskell{matches $e_2$ $w$}
+ \]
+and verifies these assertions by instantiating them with concrete terms. QuickCheck randomly generates a fixed number of examples whereas SmallCheck systematically generates \emph{all} inputs. I use QuickCheck to test against a large alphabet (Unicode characters), and SmallCheck to tests against a very small alphabet with three characters. SmallCheck was very helpful for catching bugs at corner cases and generating simple counterexamples (since the alphabet is very small).
+
+During random testing, I frequently ran into exponential behavior with \haskell{equivalent}, \haskell{intersection}, and \haskell{complement}. These operations have proven lower bounds \cite{Kozen77,GeladeN12} so occasional bad behavior is unavoidable, but the usual claim is that they fare much better on real-world inputs (see \cite{FosterKM0T15} for instance). It is interesting to note that this claim apparently does not extend to \emph{random} inputs. As a solution, I limit the size of randomly generated regular expressions to 4 or 5 operators which is sufficient to get high code coverage.
+
+This was the first time I took testing seriously and it certainly paid off. I had been of the opinion that having the backing of a powerful type system like Haskell's and writing well-structured code would make it nigh impossible to introduce bugs. However, despite being extra careful and utilizing Haskell's type system to its fullest, I discovered half a dozen bugs during testing. On the plus side, I was able to focus on writing ``interesting'' tests thanks to Haskell's type system (users of untyped languages have to write hundreds of tests essentially asserting their program is well-typed). This goes on to show that type systems and testing go hand in hand.
+
+\section{An Application: Unicode Grapheme Cluster Breaks}\label{application}
+
+In this section, I briefly talk about the reason this library exists in the first place.
+
+Unicode has become the de facto standard for international text. However, it is such a complicated beast that most people have misconceptions about how Unicode works. One of these misconceptions is the idea that each character you see on the screen corresponds to a single Unicode code point. This is a reasonable expectation since ``a'', ``!'', and ``$\Omega$'' are all Unicode code points. However, there are ``characters'' that require more than one Unicode code point to represent. For example, G with acute accent \'G requires two. Such a group of code points that represent a single user-perceived character is called a grapheme cluster.
+
+Unicode strings are transmitted as flat sequences of code points, so breaking them up into their grapheme clusters might (and should) be a first step in any code that is to handle Unicode correctly. The Unicode standard gives a declarative specification of how this should be done\footnote{\url{http://unicode.org/reports/tr29}} using an ordered list of rules with the following two forms: $e_1 \times e_2$ meaning break at positions where the left-hand side matches $e_1$ and the right-hand side matches $e_2$, and $e_1 \div e_2$ meaning do not break at matching positions. When rules overlap, the first one in the list applies. The Unicode technical report clams without proof that these rules can be converted into a regular expression that can be used to extract grapheme clusters (by repeating a longest match for example).
+
+I thought this was an interesting way to specify text segmentation rules, so I wanted to come up with an algorithm to do this translation for the general case. I had a translation in mind that used intersection and complement extensively, so I implemented this library to see the algorithm in action. Unfortunately, that algorithm was not correct, and fixing it is left for future work.
+
+\section{Conclusion and Future Work}
+  I presented a regular expressions library for Haskell that implements very well-known theoretical results that somehow never made their appearance in popular tools. As always, some work remains to be done. First, there is significant room for optimization.  My implementation of sparse vectors and sparse matrices could use a lot of work, and suppressing Haskell's default lazy semantics in computation heavy regions might lead to significant speedups. Second, I would like to implement DFA minimization and use it to simplify regular expressions generated by \haskell{intersection} and \haskell{complement} operations. Normalizing regular expressions already simplifies them quite a bit, and going through DFAs using Brzozowski derivatives generally produces readable (and perhaps even minimal) expressions, but there are cases where the output is quite hairy. I'm hoping minimizing DFAs could remedy this situation. Finally, the interface could use some work. The code is modularized in a way that makes sense from the implementer's perspective, but it is not the interface that should be exposed to the user.
+
+
+
+%=====================================================================
+% Bibliography
+%=====================================================================
+
+\bibliographystyle{acm}
+\bibliography{bibliography,bibliography-extra}
+
+\end{document}

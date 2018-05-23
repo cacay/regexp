@@ -1,0 +1,18 @@
+-- Regular Expressions
+DBLP:journals/jacm/Brzozowski64 as Brzozowski64
+DBLP:journals/ijfcs/CampeanuSY03 as CampeanuSY03
+DBLP:conf/lata/GruberG10 as GruberG10
+DBLP:conf/cpp/DoczkalKS13 as DoczkalKS13
+DBLP:journals/iandc/Kozen94 as Kozen94
+DBLP:conf/fsttcs/KeilT14 as KeilT14
+HAL:hal-00639716v2 as BonchiP11
+
+-- Haskell Libraries
+DBLP:conf/haskell/EisenbergW12 as Singletons
+DBLP:conf/haskell/RuncimanNL08 as SmallCheck
+DBLP:conf/icfp/ClaessenH00 as QuickCheck
+
+-- Complexity
+DBLP:conf/focs/Kozen77 as Kozen77
+DBLP:journals/tocl/GeladeN12 as GeladeN12
+DBLP:conf/popl/FosterKM0T15 as FosterKM0T15
