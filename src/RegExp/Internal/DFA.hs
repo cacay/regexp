@@ -96,7 +96,7 @@ assertValid r@(Dfa (d :: DfaSize n c)) =
 
 -- | Generic product construction over two DFAs. Intersection
 -- and union of DFAs can be recovered as special cases by passing
--- in '(<.>)' and '(<+>)', respectively.
+-- in @('<.>')@ and @('<+>')@, respectively.
 product :: forall c. GSet c
         => (forall a. BooleanAlgebra a => a -> a -> a)
         -> Dfa c

@@ -93,7 +93,7 @@ type CharacterClass c =
 --
 -- == Identity and Annihilator for @.@
 --
--- prop> 1 . r = r = r. 1
+-- prop> 1 . r = r = r . 1
 -- prop> 0 . r = 0 = r . 0
 --
 -- == Star
