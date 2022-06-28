@@ -3,6 +3,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE NoStarIsType #-}
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -26,8 +27,8 @@ import Control.Exception.Base(assert)
 
 import Data.Finite
 import Data.Singletons
-import Data.Singletons.Prelude
-import Data.Singletons.TypeLits
+import GHC.TypeLits.Singletons
+import Prelude.Singletons
 
 import Data.List (intercalate)
 import qualified Data.Set

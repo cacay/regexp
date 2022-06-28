@@ -42,8 +42,8 @@ import Data.Ord (comparing)
 import Data.Finite
 import Data.Singletons
 import Data.Singletons.Decide
-import Data.Singletons.Prelude
-import Data.Singletons.TypeLits
+import GHC.TypeLits.Singletons
+import Prelude.Singletons
 
 import Data.Semiring (Semiring(..), DetectableZero(..))
 import Data.KleeneAlgebra

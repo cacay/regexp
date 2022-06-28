@@ -43,6 +43,7 @@ library
                          equivalence,
                          -- semiring-num,
                          singletons,
+                         singletons-base,
                          finite-typelits,
                          QuickCheck,
                          smallcheck
