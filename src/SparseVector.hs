@@ -29,8 +29,8 @@ import Control.Exception (assert)
 
 import Data.Finite
 import Data.Singletons
-import Data.Singletons.Prelude
-import Data.Singletons.TypeLits
+import GHC.TypeLits.Singletons
+import Prelude.Singletons
 
 import qualified Data.IntMap.Strict as IntMap
 import Data.Semiring (Semiring(..), DetectableZero(..))

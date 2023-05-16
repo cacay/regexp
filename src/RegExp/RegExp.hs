@@ -42,7 +42,7 @@ import Unsafe.Coerce(unsafeCoerce)
 
 import Data.Singletons
 import Data.Singletons.Decide
-import Data.Singletons.Prelude
+import Prelude.Singletons
 
 import Data.Set(Set)
 import qualified Data.Set as Set
